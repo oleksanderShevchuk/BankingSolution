@@ -7,55 +7,39 @@ namespace BankingSolutionApi.Services
     public class TransactionService : ITransactionService
     {
         private readonly AppDbContext _context;
+        private readonly ILogger<TransactionService> _logger;
 
-        public TransactionService(AppDbContext context)
+        public TransactionService(AppDbContext context, ILogger<TransactionService> logger)
         {
             _context = context;
+            _logger = logger;
         }
 
         public async Task<Transaction> DepositAsync(int accountId, decimal amount)
         {
-            var account = await _context.Accounts.FindAsync(accountId);
-            if (account == null)
-                throw new ArgumentException($"Account with ID {accountId} not found.");
+            var account = await GetAccountOrThrow(accountId);
 
             account.Balance += amount;
+            var tx = CreateTransaction(accountId, amount, "Deposit");
 
-            var transaction = new Transaction
-            {
-                AccountId = accountId,
-                Amount = amount,
-                Type = "Deposit"
-            };
+            await SaveTransactionAsync(account, tx);
+            _logger.LogInformation("Deposit {Amount} to Account {Id}", amount, accountId);
 
-            _context.Transactions.Add(transaction);
-            await _context.SaveChangesAsync();
-
-            return transaction;
+            return tx;
         }
 
         public async Task<Transaction> WithdrawAsync(int accountId, decimal amount)
         {
-            var account = await _context.Accounts.FindAsync(accountId);
-            if (account == null)
-                throw new ArgumentException($"Account with ID {accountId} not found.");
-
-            if (account.Balance < amount)
-                throw new InvalidOperationException("Insufficient funds.");
+            var account = await GetAccountOrThrow(accountId);
+            EnsureSufficientFunds(account, amount);
 
             account.Balance -= amount;
+            var tx = CreateTransaction(accountId, amount, "Withdraw");
 
-            var transaction = new Transaction
-            {
-                AccountId = accountId,
-                Amount = amount,
-                Type = "Withdraw"
-            };
+            await SaveTransactionAsync(account, tx);
+            _logger.LogInformation("Withdraw {Amount} from Account {Id}", amount, accountId);
 
-            _context.Transactions.Add(transaction);
-            await _context.SaveChangesAsync();
-
-            return transaction;
+            return tx;
         }
 
         public async Task<(Transaction withdrawTx, Transaction depositTx)> TransferAsync(int fromAccountId, int toAccountId, decimal amount)
@@ -63,40 +47,57 @@ namespace BankingSolutionApi.Services
             if (fromAccountId == toAccountId)
                 throw new ArgumentException("Cannot transfer to the same account.");
 
-            using var transaction = await _context.Database.BeginTransactionAsync();
+            using var dbTx = await _context.Database.BeginTransactionAsync();
 
-            var fromAccount = await _context.Accounts.FindAsync(fromAccountId);
-            var toAccount = await _context.Accounts.FindAsync(toAccountId);
+            var fromAccount = await GetAccountOrThrow(fromAccountId);
+            var toAccount = await GetAccountOrThrow(toAccountId);
 
-            if (fromAccount == null || toAccount == null)
-                throw new ArgumentException("One or both accounts not found.");
+            EnsureSufficientFunds(fromAccount, amount);
 
-            if (fromAccount.Balance < amount)
-                throw new InvalidOperationException("Insufficient funds.");
-
-            // Update balances
             fromAccount.Balance -= amount;
             toAccount.Balance += amount;
 
-            // Create transaction records
-            var withdrawTx = new Transaction
-            {
-                AccountId = fromAccountId,
-                Amount = amount,
-                Type = "TransferOut"
-            };
-            var depositTx = new Transaction
-            {
-                AccountId = toAccountId,
-                Amount = amount,
-                Type = "TransferIn"
-            };
+            var withdrawTx = CreateTransaction(fromAccountId, amount, "TransferOut");
+            var depositTx = CreateTransaction(toAccountId, amount, "TransferIn");
 
             _context.Transactions.AddRange(withdrawTx, depositTx);
             await _context.SaveChangesAsync();
-            await transaction.CommitAsync();
+            await dbTx.CommitAsync();
+
+            _logger.LogInformation("Transferred {Amount} from Account {From} to {To}", amount, fromAccountId, toAccountId);
 
             return (withdrawTx, depositTx);
         }
+
+        private async Task<Account> GetAccountOrThrow(int accountId)
+        {
+            var account = await _context.Accounts.FindAsync(accountId);
+            if (account == null)
+                throw new ArgumentException($"Account with ID {accountId} not found.");
+            return account;
+        }
+
+        private static void EnsureSufficientFunds(Account account, decimal amount)
+        {
+            if (account.Balance < amount)
+                throw new InvalidOperationException("Insufficient funds.");
+        }
+
+        private static Transaction CreateTransaction(int accountId, decimal amount, string type) =>
+            new()
+            {
+                AccountId = accountId,
+                Amount = amount,
+                Type = type,
+                CreatedAt = DateTime.UtcNow
+            };
+
+        private async Task SaveTransactionAsync(Account account, Transaction tx)
+        {
+            _context.Accounts.Update(account);
+            _context.Transactions.Add(tx);
+            await _context.SaveChangesAsync();
+        }
     }
+
 }

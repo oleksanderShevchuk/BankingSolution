@@ -1,4 +1,5 @@
-﻿using BankingSolutionApi.DTOs;
+﻿using AutoMapper;
+using BankingSolutionApi.DTOs;
 using BankingSolutionApi.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,10 +10,12 @@ namespace BankingSolutionApi.Controllers
     public class AccountController : ControllerBase
     {
         private readonly IAccountService _accountService;
+        private readonly IMapper _mapper;
 
-        public AccountController(IAccountService accountService)
+        public AccountController(IAccountService accountService, IMapper mapper)
         {
             _accountService = accountService;
+            _mapper = mapper;
         }
 
         [HttpPost]
@@ -22,7 +25,9 @@ namespace BankingSolutionApi.Controllers
                 return BadRequest(ModelState);
 
             var account = await _accountService.CreateAccountAsync(dto.OwnerName, dto.InitialBalance);
-            return CreatedAtAction(nameof(GetAccountById), new { id = account.Id }, account);
+            var response = _mapper.Map<AccountResponseDto>(account);
+
+            return CreatedAtAction(nameof(GetAccountById), new { id = account.Id }, response);
         }
 
         [HttpGet("{id:int}")]
@@ -32,14 +37,14 @@ namespace BankingSolutionApi.Controllers
             if (account == null)
                 return NotFound($"Account with ID {id} not found.");
 
-            return Ok(account);
+            return Ok(_mapper.Map<AccountResponseDto>(account));
         }
 
         [HttpGet]
         public async Task<IActionResult> GetAllAccounts()
         {
             var accounts = await _accountService.GetAllAccountsAsync();
-            return Ok(accounts);
+            return Ok(_mapper.Map<IEnumerable<AccountResponseDto>>(accounts));
         }
     }
 }

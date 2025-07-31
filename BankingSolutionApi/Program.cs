@@ -2,6 +2,7 @@ using BankingSolutionApi.Data;
 using BankingSolutionApi.Services.Interfaces;
 using BankingSolutionApi.Services;
 using Microsoft.EntityFrameworkCore;
+using BankingSolutionApi.Middlewares;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -12,6 +13,9 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // Services
 builder.Services.AddScoped<IAccountService, AccountService>();
 builder.Services.AddScoped<ITransactionService, TransactionService>();
+
+builder.Services.AddAutoMapper(typeof(Program));
+
 
 // Controllers + Swagger
 builder.Services.AddControllers();
@@ -28,6 +32,8 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 app.UseAuthorization();
 

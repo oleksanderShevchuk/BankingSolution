@@ -1,4 +1,5 @@
-﻿using BankingSolutionApi.DTOs;
+﻿using AutoMapper;
+using BankingSolutionApi.DTOs;
 using BankingSolutionApi.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -9,10 +10,12 @@ namespace BankingSolutionApi.Controllers
     public class TransactionController : ControllerBase
     {
         private readonly ITransactionService _transactionService;
+        private readonly IMapper _mapper;
 
-        public TransactionController(ITransactionService transactionService)
+        public TransactionController(ITransactionService transactionService, IMapper mapper)
         {
             _transactionService = transactionService;
+            _mapper = mapper;
         }
 
         [HttpPost("deposit")]
@@ -20,15 +23,8 @@ namespace BankingSolutionApi.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            try
-            {
-                var result = await _transactionService.DepositAsync(dto.AccountId, dto.Amount);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            var result = await _transactionService.DepositAsync(dto.AccountId, dto.Amount);
+            return Ok(_mapper.Map<TransactionResponseDto>(result));
         }
 
         [HttpPost("withdraw")]
@@ -36,15 +32,8 @@ namespace BankingSolutionApi.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            try
-            {
-                var result = await _transactionService.WithdrawAsync(dto.AccountId, dto.Amount);
-                return Ok(result);
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+            var result = await _transactionService.WithdrawAsync(dto.AccountId, dto.Amount);
+            return Ok(_mapper.Map<TransactionResponseDto>(result));
         }
 
         [HttpPost("transfer")]
@@ -52,15 +41,14 @@ namespace BankingSolutionApi.Controllers
         {
             if (!ModelState.IsValid) return BadRequest(ModelState);
 
-            try
+            var (withdrawTx, depositTx) = await _transactionService.TransferAsync(dto.FromAccountId, dto.ToAccountId, dto.Amount);
+
+            return Ok(new TransferResponseDto
             {
-                var result = await _transactionService.TransferAsync(dto.FromAccountId, dto.ToAccountId, dto.Amount);
-                return Ok(new { Withdraw = result.withdrawTx, Deposit = result.depositTx });
-            }
-            catch (Exception ex)
-            {
-                return BadRequest(ex.Message);
-            }
+                Withdraw = _mapper.Map<TransactionResponseDto>(withdrawTx),
+                Deposit = _mapper.Map<TransactionResponseDto>(depositTx)
+            });
         }
     }
+
 }
