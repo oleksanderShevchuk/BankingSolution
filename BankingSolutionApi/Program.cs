@@ -3,6 +3,8 @@ using BankingSolutionApi.Services.Interfaces;
 using BankingSolutionApi.Services;
 using Microsoft.EntityFrameworkCore;
 using BankingSolutionApi.Middlewares;
+using FluentValidation.AspNetCore;
+using BankingSolutionApi.Validators;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -18,7 +20,8 @@ builder.Services.AddAutoMapper(typeof(Program));
 
 
 // Controllers + Swagger
-builder.Services.AddControllers();
+builder.Services.AddControllers()
+    .AddFluentValidation(fv => fv.RegisterValidatorsFromAssemblyContaining<CreateAccountValidator>());
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 

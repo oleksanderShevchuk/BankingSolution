@@ -45,11 +45,24 @@ namespace BankingSolutionApi.Services
             return account;
         }
 
-        public async Task<IEnumerable<Account>> GetAllAccountsAsync()
+        public async Task<(IEnumerable<Account> Accounts, int TotalCount)> GetAccountsAsync(string? ownerName, int page, int pageSize)
         {
-            var accounts = await _context.Accounts.AsNoTracking().ToListAsync();
-            _logger.LogInformation("Retrieved {Count} accounts", accounts.Count);
-            return accounts;
+            var query = _context.Accounts.AsQueryable();
+
+            if (!string.IsNullOrEmpty(ownerName))
+                query = query.Where(a => a.OwnerName.Contains(ownerName));
+
+            var totalCount = await query.CountAsync();
+
+            var accounts = await query
+                .OrderBy(a => a.Id)
+                .Skip((page - 1) * pageSize)
+                .Take(pageSize)
+                .AsNoTracking()
+                .ToListAsync();
+
+            return (accounts, totalCount);
         }
+
     }
 }

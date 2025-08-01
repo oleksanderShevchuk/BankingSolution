@@ -1,5 +1,6 @@
 ﻿using AutoMapper;
 using BankingSolutionApi.DTOs;
+using BankingSolutionApi.Responses;
 using BankingSolutionApi.Services.Interfaces;
 using Microsoft.AspNetCore.Mvc;
 
@@ -22,12 +23,12 @@ namespace BankingSolutionApi.Controllers
         public async Task<IActionResult> CreateAccount(CreateAccountDto dto)
         {
             if (!ModelState.IsValid)
-                return BadRequest(ModelState);
+                return BadRequest(ApiResponse<string>.Fail("Validation failed"));
 
             var account = await _accountService.CreateAccountAsync(dto.OwnerName, dto.InitialBalance);
             var response = _mapper.Map<AccountResponseDto>(account);
 
-            return CreatedAtAction(nameof(GetAccountById), new { id = account.Id }, response);
+            return CreatedAtAction(nameof(GetAccountById), new { id = account.Id }, ApiResponse<AccountResponseDto>.Ok(response));
         }
 
         [HttpGet("{id:int}")]
@@ -35,16 +36,26 @@ namespace BankingSolutionApi.Controllers
         {
             var account = await _accountService.GetAccountByIdAsync(id);
             if (account == null)
-                return NotFound($"Account with ID {id} not found.");
+                return NotFound(ApiResponse<string>.Fail($"Account with ID {id} not found."));
 
-            return Ok(_mapper.Map<AccountResponseDto>(account));
+            var dto = _mapper.Map<AccountResponseDto>(account);
+            return Ok(ApiResponse<AccountResponseDto>.Ok(dto));
         }
 
         [HttpGet]
-        public async Task<IActionResult> GetAllAccounts()
+        public async Task<IActionResult> GetAccounts([FromQuery] AccountQueryDto query)
         {
-            var accounts = await _accountService.GetAllAccountsAsync();
-            return Ok(_mapper.Map<IEnumerable<AccountResponseDto>>(accounts));
+            var (accounts, totalCount) = await _accountService.GetAccountsAsync(query.OwnerName, query.Page, query.PageSize);
+
+            var dto = new
+            {
+                TotalCount = totalCount,
+                Page = query.Page,
+                PageSize = query.PageSize,
+                Items = _mapper.Map<IEnumerable<AccountResponseDto>>(accounts)
+            };
+
+            return Ok(ApiResponse<object>.Ok(dto));
         }
     }
 }

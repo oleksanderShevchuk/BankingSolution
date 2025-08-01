@@ -6,6 +6,7 @@ namespace BankingSolutionApi.Services.Interfaces
     {
         Task<Account> CreateAccountAsync(string ownerName, decimal initialBalance);
         Task<Account?> GetAccountByIdAsync(int id);
-        Task<IEnumerable<Account>> GetAllAccountsAsync();
+        Task<(IEnumerable<Account> Accounts, int TotalCount)> GetAccountsAsync(string? ownerName, int page, int pageSize);
+
     }
 }

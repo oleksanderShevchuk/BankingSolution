@@ -1,5 +1,6 @@
 ﻿using System.Net;
 using System.Text.Json;
+using BankingSolutionApi.Responses;
 
 namespace BankingSolutionApi.Middlewares
 {
@@ -22,23 +23,20 @@ namespace BankingSolutionApi.Middlewares
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Unhandled exception occurred");
-                context.Response.ContentType = "application/json";
+                _logger.LogError(ex, "Unhandled exception");
 
+                context.Response.ContentType = "application/json";
                 context.Response.StatusCode = ex switch
                 {
                     ArgumentException => (int)HttpStatusCode.BadRequest,
                     InvalidOperationException => (int)HttpStatusCode.Conflict,
+                    KeyNotFoundException => (int)HttpStatusCode.NotFound,
                     _ => (int)HttpStatusCode.InternalServerError
                 };
 
-                var errorResponse = new
-                {
-                    error = ex.Message,
-                    status = context.Response.StatusCode
-                };
+                var response = ApiResponse<string>.Fail(ex.Message);
 
-                await context.Response.WriteAsync(JsonSerializer.Serialize(errorResponse));
+                await context.Response.WriteAsync(JsonSerializer.Serialize(response));
             }
         }
     }
